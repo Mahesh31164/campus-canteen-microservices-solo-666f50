@@ -1,0 +1,18 @@
+pluginManagement {
+    repositories {
+        gradlePluginPortal()
+    }
+}
+
+plugins {
+    id 'org.gradle.toolchains.foojay-resolver-convention' version '0.9.0'
+}
+
+rootProject.name = 'canteen-microservices'
+
+include 'common-contracts'
+include 'discovery-server'
+include 'api-gateway'
+include 'auth-service'
+include 'menu-service'
+include 'order-service'

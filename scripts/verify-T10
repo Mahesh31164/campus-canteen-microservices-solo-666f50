@@ -1,0 +1,78 @@
+#!/usr/bin/env bash
+# verify-T10: the full chain through the gateway.
+#   POST /api/orders -> 201, stock decremented, server-computed total
+#   unknown item -> 404, short stock -> 409, client-sent price ignored
+set -e
+cd "$(dirname "$0")/.."
+source scripts/lib/common.sh
+
+AUTH="http://localhost:8083"
+MENU="http://localhost:8081"
+GW="http://localhost:8080"
+
+token="$(curl -s -X POST "$AUTH/auth/login" -H 'Content-Type: application/json' -d '{"username":"alice","password":"password"}' | python3 -c 'import sys,json
+try: print(json.load(sys.stdin).get("token",""))
+except Exception: print("")' 2>/dev/null)"
+[ -n "$token" ] || die "no auth token (run verify-T05 first)"
+
+json_stdin() { python3 -c 'import sys,json
+try: print(json.load(sys.stdin).get(*sys.argv[1].split(",")))
+except Exception: print(-1)' "$1" 2>/dev/null; }
+
+# pick an item and snapshot its stock + price
+items="$(curl -s "$MENU/menu" -H "Authorization: Bearer $token")"
+item_id="$(echo "$items" | python3 -c 'import sys,json
+d=json.load(sys.stdin)
+print(d[0]["id"] if isinstance(d,list) and d else 1)' 2>/dev/null)"
+item_meta="$(curl -s "$MENU/menu/$item_id" -H "Authorization: Bearer $token")"
+stock_before="$(echo "$item_meta" | json_stdin stock)"
+price="$(echo "$item_meta" | json_stdin price)"
+
+# happy path with a client-sent price that must be IGNORED
+client_price="0.01"
+resp="$(curl -s -w '\n%{http_code}' -X POST "$GW/api/orders" \
+  -H "Authorization: Bearer $token" -H 'Content-Type: application/json' \
+  -d "{\"menuItemId\":$item_id,\"quantity\":1,\"price\":$client_price}")"
+code="$(echo "$resp" | tail -1)"
+body="$(echo "$resp" | head -1)"
+if [ "$code" = "201" ]; then ok "happy path returns 201"; else fail "POST /api/orders returned $code"; fi
+
+stock_after="$(curl -s "$MENU/menu/$item_id" -H "Authorization: Bearer $token" | json_stdin stock)"
+if [ "$stock_after" -lt "$stock_before" ]; then ok "stock decremented ($stock_before -> $stock_after)"; else fail "stock unchanged"; fi
+
+total="$(echo "$body" | json_stdin total)"
+if [ "$total" != "-1" ]; then
+  expected="$(python3 -c "print(round($price*1,2))")"
+  if [ "$(python3 -c "print(abs(float($total)-float($expected))<0.011)")" = "True" ]; then
+    ok "server-computed total ($total) matches menu price, client price ignored"
+  else
+    fail "total $total != expected $expected (client price not ignored?)"
+  fi
+else
+  fail "no total field in order response"
+fi
+
+code="$(http_code -X POST "$GW/api/orders" -H "Authorization: Bearer $token" -H 'Content-Type: application/json' -d '{"menuItemId":999999,"quantity":1}')"
+if [ "$code" = "404" ]; then ok "unknown item -> 404"; else fail "unknown item -> $code"; fi
+
+# short stock: order one more than currently in stock
+over="$(python3 -c "print(int('$stock_after')+1)")"
+code="$(http_code -X POST "$GW/api/orders" -H "Authorization: Bearer $token" -H 'Content-Type: application/json' -d "{\"menuItemId\":$item_id,\"quantity\":$over}")"
+if [ "$code" = "409" ]; then ok "short stock -> 409"; else fail "short stock -> $code"; fi
+
+if [ "${RUN_STOP_TEST:-0}" = "1" ]; then
+  info "stopping menu-service for a clean-error check..."
+  pkill -f "MenuServiceApplication" || true
+  got_unit=0
+  for i in $(seq 1 60); do
+    code="$(http_code -X POST "$GW/api/orders" -H "Authorization: Bearer $token" -H 'Content-Type: application/json' -d "{\"menuItemId\":1,\"quantity\":1}")"
+    if [ "$code" = "503" ] || [ "$code" = "502" ]; then got_unit=1; break; fi
+    sleep 1
+  done
+  if [ "$got_unit" = "1" ]; then ok "menu down -> clean error, no hang"; else fail "expected clean 503/502 when menu is down"; fi
+  info "restarting menu-service..."
+  run_service menu-service
+  wait_port $SERVICE_MENU 60 || true
+fi
+
+summary

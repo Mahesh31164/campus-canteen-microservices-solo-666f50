@@ -1,0 +1,28 @@
+#!/usr/bin/env bash
+# verify-setup: the gate run BEFORE a hackathon.
+#   - JDK 21 present (the only tool participants need)
+#   - ./gradlew build passes on clone
+#   - ports 8080-8083 and 8761 are free
+set -e
+cd "$(dirname "$0")/.."
+source scripts/lib/common.sh
+
+info "== JDK 21 =="
+ensure_java && ok "JDK 21 detected"
+
+info "== Gradle wrapper build =="
+require_gradlew
+if [ -x "$GRADLEW" ]; then
+  if "$GRADLEW" -q build --console=plain >/dev/null 2>&1; then
+    ok "./gradlew build passes"
+  else
+    fail "./gradlew build failed (see output by running it manually)"
+  fi
+fi
+
+info "== Ports free (8080, 8081, 8082, 8083, 8761) =="
+for p in 8080 8081 8082 8083 8761; do
+  if port_free "$p"; then ok "port $p free"; else fail "port $p is taken"; fi
+done
+
+summary

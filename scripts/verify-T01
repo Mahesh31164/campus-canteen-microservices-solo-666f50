@@ -1,0 +1,19 @@
+#!/usr/bin/env bash
+# verify-T01: all five services boot together on 8761 / 8080 / 8081 / 8082 / 8083.
+set -e
+cd "$(dirname "$0")/.."
+source scripts/lib/common.sh
+
+info "expecting: discovery(:8761) gateway(:8080) auth(:8083) menu(:8081) order(:8082)"
+
+for p in 8761 8080 8081 8082 8083; do
+  if port_open "$p"; then ok "port $p is listening"; else fail "nothing listening on $p"; fi
+done
+
+code="$(http_code http://localhost:8761)"
+if [ "$code" != "000" ]; then ok "Eureka dashboard responds on :8761"; else fail "no HTTP response on :8761"; fi
+
+code="$(http_code http://localhost:8080)"
+if [ "$code" != "000" ]; then ok "gateway responds on :8080"; else fail "no HTTP response on :8080"; fi
+
+summary

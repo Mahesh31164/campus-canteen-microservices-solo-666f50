@@ -1,0 +1,126 @@
+{
+  "info": {
+    "_postman_id": "canteen-collection-0000-0000-0000-000000000001",
+    "name": "Campus Canteen Microservices",
+    "description": "All endpoints for the Campus Canteen Microservices hackathon.\nSet an environment variable `baseUrl` (http://localhost:8080 for the gateway, http://localhost:8083 for auth) and call Login first to populate `token`.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "item": [
+    {
+      "name": "Auth (internal)",
+      "item": [
+        {
+          "name": "Login",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"username\": \"alice\",\n    \"password\": \"password\"\n}"
+            },
+            "url": { "raw": "{{authBase}}/auth/login", "host": ["{{authBase}}"], "path": ["auth", "login"] },
+            "description": "Returns { token, userId, name }. Saves the token to the environment variable `token`."
+          },
+          "response": []
+        },
+        {
+          "name": "Validate token",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": { "raw": "{{authBase}}/auth/validate?token={{token}}", "host": ["{{authBase}}"], "path": ["auth", "validate"], "query": [{ "key": "token", "value": "{{token}}" }] },
+            "description": "Resolves a token to { userId, name } or returns 401."
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Menu (internal)",
+      "item": [
+        {
+          "name": "List menu items",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{token}}" }],
+            "url": { "raw": "{{menuBase}}/menu", "host": ["{{menuBase}}"], "path": ["menu"] }
+          },
+          "response": []
+        },
+        {
+          "name": "Get menu item",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{token}}" }],
+            "url": { "raw": "{{menuBase}}/menu/1", "host": ["{{menuBase}}"], "path": ["menu", "1"] }
+          },
+          "response": []
+        },
+        {
+          "name": "Reserve stock",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n    \"qty\": 1\n}" },
+            "url": { "raw": "{{menuBase}}/menu/1/reserve", "host": ["{{menuBase}}"], "path": ["menu", "1", "reserve"] }
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Gateway (public door :8080)",
+      "item": [
+        {
+          "name": "Menu via gateway",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{token}}" }],
+            "url": { "raw": "{{baseUrl}}/api/menu", "host": ["{{baseUrl}}"], "path": ["api", "menu"] }
+          },
+          "response": []
+        },
+        {
+          "name": "Get order",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{token}}" }],
+            "url": { "raw": "{{baseUrl}}/api/orders/1", "host": ["{{baseUrl}}"], "path": ["api", "orders", "1"] }
+          },
+          "response": []
+        },
+        {
+          "name": "Get order detail",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{token}}" }],
+            "url": { "raw": "{{baseUrl}}/api/orders/1/detail", "host": ["{{baseUrl}}"], "path": ["api", "orders", "1", "detail"] }
+          },
+          "response": []
+        },
+        {
+          "name": "Place order (full chain)",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{token}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"menuItemId\": 1,\n    \"quantity\": 1\n}"
+            },
+            "url": { "raw": "{{baseUrl}}/api/orders", "host": ["{{baseUrl}}"], "path": ["api", "orders"] }
+          },
+          "response": []
+        }
+      ]
+    }
+  ],
+  "variable": [
+    { "key": "baseUrl", "value": "http://localhost:8080" },
+    { "key": "authBase", "value": "http://localhost:8083" },
+    { "key": "menuBase", "value": "http://localhost:8081" },
+    { "key": "token", "value": "" }
+  ]
+}

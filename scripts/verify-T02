@@ -1,0 +1,15 @@
+#!/usr/bin/env bash
+# verify-T02: Eureka dashboard loads on :8761 with an EMPTY registry
+# (register-with-eureka: false, fetch-registry: false are set for the server).
+set -e
+cd "$(dirname "$0")/.."
+source scripts/lib/common.sh
+
+if port_open 8761; then ok "discovery-server is up"; else fail "discovery-server not on :8761"; fi
+
+code="$(http_code http://localhost:8761)"
+if [ "$code" = "200" ]; then ok "dashboard returns 200"; else fail "dashboard returned $code"; fi
+
+assert_contains http://localhost:8761 "No instances available"
+
+summary

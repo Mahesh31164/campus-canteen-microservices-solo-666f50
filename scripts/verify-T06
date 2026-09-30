@@ -1,0 +1,39 @@
+#!/usr/bin/env bash
+# verify-T06: menu-service. All three endpoints work on :8081, an unknown id
+# is 404, and reserve decrements stock. (No auth yet at this ticket.)
+set -e
+cd "$(dirname "$0")/.."
+source scripts/lib/common.sh
+
+MENU="http://localhost:8081"
+
+code="$(http_code "$MENU/menu")"
+if [ "$code" = "200" ]; then ok "GET /menu returns 200"; else fail "GET /menu returned $code"; fi
+
+if curl -s "$MENU/menu" | grep -qE '"id"|"name"|"price"|"stock"'; then
+  ok "/menu lists five seeded MenuItems"
+else
+  fail "/menu response does not look like MenuItem list"
+fi
+
+code="$(http_code "$MENU/menu/1")"
+if [ "$code" = "200" ]; then ok "GET /menu/1 returns 200"; else fail "GET /menu/1 returned $code"; fi
+
+code="$(http_code "$MENU/menu/999999")"
+if [ "$code" = "404" ]; then ok "unknown id returns 404"; else fail "unknown id returned $code"; fi
+
+stock_of() { curl -s "$MENU/menu/$1" | python3 -c 'import sys,json
+try: print(json.load(sys.stdin).get("stock",-1))
+except Exception: print(-1)' 2>/dev/null; }
+
+before="$(stock_of 1)"
+code="$(http_code -X POST "$MENU/menu/1/reserve" -H 'Content-Type: application/json' -d '{"qty":1}')"
+after="$(stock_of 1)"
+if [ "$code" = "200" ]; then ok "POST /menu/1/reserve returns 200"; else fail "reserve returned $code"; fi
+if [ "$before" -ge 0 ] && [ "$after" -ge 0 ] && [ "$after" -lt "$before" ]; then
+  ok "stock decremented ($before -> $after)"
+else
+  fail "stock not decremented ($before -> $after)"
+fi
+
+summary

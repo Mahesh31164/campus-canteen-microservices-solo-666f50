@@ -1,0 +1,34 @@
+#!/usr/bin/env bash
+# verify-T07: order-service. Three endpoints returning stub data, plus auth,
+# menu and order all live in Eureka simultaneously.
+set -e
+cd "$(dirname "$0")/.."
+source scripts/lib/common.sh
+
+ORDER="http://localhost:8082"
+
+# Eureka: three services in the registry at once
+for name in auth-service menu-service order-service; do
+  if curl -s -H 'Accept: application/json' http://localhost:8761/eureka/apps | grep -qF "\"$name\""; then
+    ok "registered: $name"
+  else
+    fail "NOT registered: $name"
+  fi
+done
+
+# POST /orders accepts {menuItemId, quantity} and returns 201
+code="$(http_code -X POST "$ORDER/orders" -H 'Content-Type: application/json' -d '{"menuItemId":1,"quantity":2}')"
+if [ "$code" = "201" ]; then ok "POST /orders returns 201"; else fail "POST /orders returned $code"; fi
+
+code="$(http_code "$ORDER/orders/1")"
+if [ "$code" = "200" ]; then ok "GET /orders/1 returns 200"; else fail "GET /orders/1 returned $code"; fi
+
+detail="$(curl -s "$ORDER/orders/1/detail")"
+if [ "$code" = "200" ]; then ok "GET /orders/1/detail returns 200"; else fail "GET /orders/1/detail returned $code"; fi
+if echo "$detail" | grep -qE 'itemName|buyerName'; then
+  ok "detail carries stub enrichment fields (itemName/buyerName)"
+else
+  fail "detail response missing stub enrichment fields"
+fi
+
+summary

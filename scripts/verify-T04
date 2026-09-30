@@ -1,0 +1,30 @@
+#!/usr/bin/env bash
+# verify-T04: common-contracts holds exactly the nine DTO records and
+# everything compiles against it. No entities, no logic, no state in there.
+set -e
+cd "$(dirname "$0")/.."
+source scripts/lib/common.sh
+
+dto_dir="$ROOT_DIR/common-contracts/src/main/java/com/canteen/common/dto"
+if [ -d "$dto_dir" ]; then
+  count="$(find "$dto_dir" -name '*.java' | wc -l | tr -d ' ')"
+  if [ "$count" = "9" ]; then ok "common-contracts/dto has exactly 9 records"; else fail "expected 9 records in dto/, found $count"; fi
+else
+  fail "common-contracts/dto package not found"
+fi
+
+if grep -qriE "class |static |@Entity| extends | implements " "$dto_dir" 2>/dev/null; then
+  fail "common-contracts should contain records only — no classes/entities/logic"
+else
+  ok "no entities, classes or logic in common-contracts"
+fi
+
+info "compiling the reactor..."
+require_gradlew
+if "$GRADLEW" -q build --console=plain >/dev/null 2>&1; then
+  ok "./gradlew build passes against the shared contracts"
+else
+  fail "./gradlew build failed"
+fi
+
+summary

@@ -1,0 +1,32 @@
+#!/usr/bin/env bash
+# verify-T05: auth-service. Login returns a token, validate resolves it,
+# a garbage token returns 401.
+# Seeded users (from the ticket): alice / bob / carol, password "password".
+set -e
+cd "$(dirname "$0")/.."
+source scripts/lib/common.sh
+
+AUTH="http://localhost:8083"
+
+code="$(http_code -X POST "$AUTH/auth/login" -H 'Content-Type: application/json' -d '{"username":"alice","password":"password"}')"
+if [ "$code" = "200" ]; then ok "POST /auth/login returns 200 for a seeded user"; else fail "POST /auth/login returned $code"; fi
+
+token="$(curl -s -X POST "$AUTH/auth/login" -H 'Content-Type: application/json' -d '{"username":"alice","password":"password"}' | python3 -c 'import sys,json
+try: print(json.load(sys.stdin).get("token",""))
+except Exception: print("")' 2>/dev/null)"
+if [ -n "$token" ]; then ok "login returned a token"; else fail "no token in login response"; fi
+
+if [ -n "$token" ]; then
+  code="$(http_code "$AUTH/auth/validate?token=$token")"
+  if [ "$code" = "200" ]; then ok "GET /auth/validate with token returns 200"; else fail "validate with token returned $code"; fi
+  if curl -s "$AUTH/auth/validate?token=$token" | grep -qE '"userId"|"name"'; then
+    ok "validate resolves the user ({userId, name})"
+  else
+    fail "validate response missing userId/name"
+  fi
+fi
+
+code="$(http_code "$AUTH/auth/validate?token=not-a-real-token")"
+if [ "$code" = "401" ]; then ok "garbage token returns 401"; else fail "garbage token returned $code"; fi
+
+summary

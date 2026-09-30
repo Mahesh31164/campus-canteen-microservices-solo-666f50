@@ -1,0 +1,50 @@
+#!/usr/bin/env bash
+# verify-T09: first Feign hops. A bad token is 401 everywhere, the /detail
+# response carries item name + buyer name that order-service never stored,
+# and auth down gives a clean 503 instead of a hang.
+set -e
+cd "$(dirname "$0")/.."
+source scripts/lib/common.sh
+
+AUTH="http://localhost:8083"
+GW="http://localhost:8080"
+
+token="$(curl -s -X POST "$AUTH/auth/login" -H 'Content-Type: application/json' -d '{"username":"alice","password":"password"}' | python3 -c 'import sys,json
+try: print(json.load(sys.stdin).get("token",""))
+except Exception: print("")' 2>/dev/null)"
+[ -n "$token" ] || fail "login failed — run verify-T05 first"
+
+# /detail is enriched with data order-service does not own
+detail="$(curl -s "$GW/api/orders/1/detail" -H "Authorization: Bearer $token")"
+if echo "$detail" | grep -qE '"itemName"|"buyerName"'; then
+  ok "/detail carries item name and buyer name order-service never stored"
+else
+  fail "/detail missing enrichment (itemName/buyerName)"
+fi
+
+for url in "$GW/api/menu" "$GW/api/orders/1"; do
+  code="$(http_code "$url" -H "Authorization: Bearer $token")"
+  if [ "$code" = "200" ]; then ok "$url with token -> 200"; else fail "$url with token -> $code"; fi
+done
+
+for url in "$GW/api/menu" "$GW/api/orders/1" "$GW/api/orders/1/detail"; do
+  code="$(http_code "$url" -H "Authorization: Bearer not-a-token")"
+  if [ "$code" = "401" ]; then ok "$url with bad token -> 401"; else fail "$url with bad token -> $code"; fi
+done
+
+if [ "${RUN_STOP_TEST:-0}" = "1" ]; then
+  info "stopping auth-service to check for a clean 503..."
+  pkill -f "AuthServiceApplication" || true
+  got503=0
+  for i in $(seq 1 60); do
+    code="$(http_code "$GW/api/orders/1" -H "Authorization: Bearer $token")"
+    if [ "$code" = "503" ]; then got503=1; break; fi
+    sleep 1
+  done
+  if [ "$got503" = "1" ]; then ok "auth down -> clean 503"; else fail "expected 503 when auth is down"; fi
+  info "restarting auth-service..."
+  run_service auth-service
+  wait_port $SERVICE_AUTH 60 || true
+fi
+
+summary

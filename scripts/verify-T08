@@ -1,0 +1,39 @@
+#!/usr/bin/env bash
+# verify-T08: gateway routing. T5-T7 endpoints reachable through :8080, no
+# hardcoded port in the gateway config, and a stopped service yields a clean
+# 503. (The stop test is disabled unless RUN_STOP_TEST=1 — lease eviction
+# makes it slow.)
+set -e
+cd "$(dirname "$0")/.."
+source scripts/lib/common.sh
+
+assert_http 200 http://localhost:8080/api/menu
+assert_http 200 http://localhost:8080/api/orders/1
+assert_http 200 http://localhost:8080/api/orders/1/detail
+
+if grep -rq "8081" "$ROOT_DIR/api-gateway/src"; then
+  fail "api-gateway config contains a hardcoded :8081"
+else
+  ok "no hardcoded :8081 in the gateway config"
+fi
+
+if [ "${RUN_STOP_TEST:-0}" = "1" ]; then
+  info "stopping menu-service to verify the gateway surfaces a clean 503..."
+  pkill -f "MenuServiceApplication" || true
+  got503=0
+  for i in $(seq 1 150); do
+    code="$(http_code http://localhost:8080/api/menu)"
+    if [ "$code" = "503" ]; then got503=1; break; fi
+    sleep 1
+  done
+  if [ "$got503" = "1" ]; then
+    ok "gateway returns 503 (not a stack trace) when menu-service is down"
+  else
+    fail "expected 503 from the gateway; got something else"
+  fi
+  info "restarting menu-service..."
+  run_service menu-service
+  wait_port $SERVICE_MENU 60 || info "menu-service not up yet — continue with the next ticket"
+fi
+
+summary

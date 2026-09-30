@@ -1,0 +1,37 @@
+#!/usr/bin/env bash
+# verify-T03: four client instances register with Eureka, and a killed service
+# drops off the dashboard within the eviction window.
+set -e
+cd "$(dirname "$0")/.."
+source scripts/lib/common.sh
+
+apps_url="http://localhost:8761/eureka/apps"
+apps_json() { curl -s -H 'Accept: application/json' "$apps_url"; }
+apps_names() { apps_json | python3 -c 'import sys,json
+d=json.load(sys.stdin)["applications"]["application"]
+print("\n".join(a.get("name","") for a in d if isinstance(a,dict)))' 2>/dev/null || true; }
+
+required="api-gateway auth-service menu-service order-service"
+info "expecting four registered clients: api-gateway auth-service menu-service order-service"
+missing=0
+for name in $required; do
+  if apps_names | grep -qxF "$name"; then ok "registered: $name"; else fail "NOT registered: $name"; fi
+done
+
+kill_service() { pkill -f "MenuServiceApplication" || true; }
+
+if [ "${RUN_STOP_TEST:-1}" = "1" ]; then
+  info "killing menu-service and waiting for eviction (lease expiry), up to 150s..."
+  kill_service
+  gone=0
+  for i in $(seq 1 150); do
+    if ! apps_names | grep -qxF "menu-service"; then gone=1; break; fi
+    sleep 1
+  done
+  if [ "$gone" = "1" ]; then ok "menu-service dropped off within the eviction window"; else fail "menu-service still registered after 150s"; fi
+  info "restarting menu-service (verify-T05+ will need it)"
+  run_service menu-service
+  wait_port $SERVICE_MENU 60 || info "menu-service not up yet — continue with the next ticket"
+fi
+
+summary

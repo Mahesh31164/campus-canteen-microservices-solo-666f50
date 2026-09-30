@@ -1,0 +1,37 @@
+#!/usr/bin/env bash
+# run-all: start the five canteen services, one per terminal-style process.
+# All application.yml files start empty on purpose: without server.port the
+# four app services fight over 8080 and one of them dies on startup.
+# Ticket 1 is fixing that. Start order matters: registry first.
+set -e
+cd "$(dirname "$0")/.."
+source scripts/lib/common.sh
+
+require_gradlew
+ensure_java
+
+mkdir -p build
+
+run_service discovery-server
+if wait_port $SERVICE_DISCOVERY 60; then
+  info "discovery-server is up on :$SERVICE_DISCOVERY"
+else
+  info "discovery-server not responding yet — checking its log"
+  tail -20 build/run-discovery-server.log || true
+fi
+
+run_service api-gateway
+run_service auth-service
+run_service menu-service
+run_service order-service
+
+info "waiting for services..."
+wait_port $SERVICE_AUTH 30 || true
+
+info ""
+info "log files: build/run-<module>.log"
+info "point your browser at http://localhost:8761 (Eureka dashboard)"
+info "public door: http://localhost:8080"
+info ""
+info "If a service crashed on startup, it is almost certainly the port clash."
+info "Give every service a unique server.port (that is Ticket 1)."
