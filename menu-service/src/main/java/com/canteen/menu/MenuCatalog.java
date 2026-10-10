@@ -7,6 +7,7 @@ import org.springframework.stereotype.Service;
 import java.math.BigDecimal;
 import java.util.Collection;
 import java.util.List;
+import java.util.Optional;
 import java.util.concurrent.ConcurrentHashMap;
 
 @Service
@@ -27,8 +28,8 @@ public class MenuCatalog {
         return List.copyOf(items.values());
     }
 
-    public MenuItem findById(long id) {
-        return items.get(id);
+    public Optional<MenuItem> findById(long id) {
+        return Optional.ofNullable(items.get(id));
     }
 
     public ReserveOutcome reserve(long id, int qty) {
@@ -61,8 +62,8 @@ public class MenuCatalog {
         items.put(id, new MenuItem(id, name, new BigDecimal(price), stock));
     }
 
-    public record ReserveOutcome(Kind kind, MenuItem item) {
-        public enum Kind { RESERVED, MISSING, SHORT_STOCK, INVALID }
+    record ReserveOutcome(Kind kind, MenuItem item) {
+        enum Kind { RESERVED, MISSING, SHORT_STOCK, INVALID }
 
         static ReserveOutcome reserved(MenuItem item) {
             return new ReserveOutcome(Kind.RESERVED, item);
