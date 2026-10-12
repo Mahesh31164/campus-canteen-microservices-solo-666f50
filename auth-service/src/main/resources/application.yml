@@ -1,5 +1,8 @@
 server:
   port: 8083
+  error:
+    include-stacktrace: never
+    include-exception: false
 
 spring:
   application:

@@ -3,6 +3,7 @@ package com.canteen.menu;
 import com.canteen.common.dto.ApiResponse;
 import com.canteen.common.dto.MenuItem;
 import com.canteen.common.dto.ReserveRequest;
+import com.canteen.menu.client.TokenValidator;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.http.converter.HttpMessageNotReadableException;
@@ -11,6 +12,7 @@ import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RestController;
 
 import java.util.Collection;
@@ -19,18 +21,23 @@ import java.util.Collection;
 public class MenuController {
 
     private final MenuCatalog catalog;
+    private final TokenValidator tokens;
 
-    public MenuController(MenuCatalog catalog) {
+    public MenuController(MenuCatalog catalog, TokenValidator tokens) {
         this.catalog = catalog;
+        this.tokens = tokens;
     }
 
     @GetMapping("/menu")
-    public Collection<MenuItem> list() {
+    public Collection<MenuItem> list(@RequestHeader(value = "Authorization", required = false) String authorization) {
+        tokens.require(authorization);
         return catalog.findAll();
     }
 
     @GetMapping("/menu/{id}")
-    public ResponseEntity<MenuItem> get(@PathVariable long id) {
+    public ResponseEntity<MenuItem> get(@PathVariable long id,
+                                        @RequestHeader(value = "Authorization", required = false) String authorization) {
+        tokens.require(authorization);
         return catalog.findById(id)
                 .map(ResponseEntity::ok)
                 .orElseGet(() -> ResponseEntity.notFound().build());

@@ -1,9 +1,19 @@
 server:
   port: 8082
+  error:
+    include-stacktrace: never
+    include-exception: false
 
 spring:
   application:
     name: order-service
+  cloud:
+    openfeign:
+      client:
+        config:
+          default:
+            connectTimeout: 2000
+            readTimeout: 2000
 
 eureka:
   client:
