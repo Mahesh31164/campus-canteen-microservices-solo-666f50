@@ -1,7 +1,6 @@
 package com.canteen.order;
 
 import com.canteen.common.dto.Order;
-import com.canteen.common.dto.OrderRequest;
 import org.springframework.stereotype.Service;
 
 import java.math.BigDecimal;
@@ -15,15 +14,9 @@ public class OrderStore {
     private final ConcurrentHashMap<Long, Order> orders = new ConcurrentHashMap<>();
     private final AtomicLong ids = new AtomicLong(1);
 
-    public Order create(OrderRequest request) {
+    public Order create(String userId, Long menuItemId, int quantity, BigDecimal total) {
         long id = ids.getAndIncrement();
-        Order order = new Order(
-                id,
-                "stub-user",
-                request.menuItemId(),
-                request.quantity(),
-                BigDecimal.ZERO
-        );
+        Order order = new Order(id, userId, menuItemId, quantity, total);
         orders.put(id, order);
         return order;
     }
