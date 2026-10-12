@@ -8,7 +8,6 @@ import com.canteen.common.dto.ValidateResponse;
 import com.canteen.order.client.MenuClient;
 import com.canteen.order.client.TokenValidator;
 import feign.FeignException;
-import feign.RetryableException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.http.converter.HttpMessageNotReadableException;
@@ -72,7 +71,7 @@ public class OrderController {
             }
         } catch (FeignException.NotFound ignored) {
             // keep fallback name
-        } catch (RetryableException | FeignException ex) {
+        } catch (FeignException ex) {
             throw new ResponseStatusException(HttpStatus.SERVICE_UNAVAILABLE, "Service unavailable");
         }
         return new OrderDetailResponse(order, buyer.name(), itemName);

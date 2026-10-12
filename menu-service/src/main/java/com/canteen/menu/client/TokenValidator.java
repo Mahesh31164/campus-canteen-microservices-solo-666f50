@@ -2,7 +2,6 @@ package com.canteen.menu.client;
 
 import com.canteen.common.dto.ValidateResponse;
 import feign.FeignException;
-import feign.RetryableException;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Component;
 import org.springframework.web.server.ResponseStatusException;
@@ -25,7 +24,7 @@ public class TokenValidator {
             return authClient.validate(token, authorization);
         } catch (FeignException.Unauthorized | FeignException.Forbidden ex) {
             throw new ResponseStatusException(HttpStatus.UNAUTHORIZED);
-        } catch (RetryableException | FeignException ex) {
+        } catch (FeignException ex) {
             throw new ResponseStatusException(HttpStatus.SERVICE_UNAVAILABLE, "Service unavailable");
         }
     }
