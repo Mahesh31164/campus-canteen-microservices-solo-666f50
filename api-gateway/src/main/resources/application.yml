@@ -1,9 +1,39 @@
 server:
   port: 8080
+  error:
+    include-stacktrace: never
+    include-message: always
+    include-exception: false
 
 spring:
   application:
     name: api-gateway
+  cloud:
+    gateway:
+      server:
+        webflux:
+          httpclient:
+            connect-timeout: 2000
+            response-timeout: 2s
+          routes:
+            - id: auth-service
+              uri: lb://auth-service
+              predicates:
+                - Path=/api/auth/**
+              filters:
+                - StripPrefix=1
+            - id: menu-service
+              uri: lb://menu-service
+              predicates:
+                - Path=/api/menu/**
+              filters:
+                - StripPrefix=1
+            - id: order-service
+              uri: lb://order-service
+              predicates:
+                - Path=/api/orders/**
+              filters:
+                - StripPrefix=1
 
 eureka:
   client:
